@@ -1,0 +1,134 @@
+<html>
+<head>
+<meta charset="UTF-8">
+    <script src="oxglmath.js"></script>
+    <script id="vtxshader" type="x-shader/x-vertex">
+        // 頂点シェーダ
+        attribute vec3 aPos;
+        attribute vec4 aColor;
+        uniform mat4 uWVP;
+
+        varying vec4 vColor;
+
+        void main( void ) {
+            vColor = aColor;
+            vec4 outPos = vec4( aPos, 1.0 ) * uWVP;
+            gl_Position = outPos / outPos.w;
+        }
+    </script>
+
+    <script id="frgshader" type="x-shader/x-fragment">
+        // フラグメントシェーダ
+        precision mediump float;
+
+        varying vec4 vColor;
+
+        void main( void ) {
+            gl_FragColor = vColor;
+        }
+    </script>
+
+    <script>
+        window.onload = function() {
+            // canvasからコンテキストを取得する
+            var canvas = document.getElementById("canvas");
+            var glc = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+
+            // 頂点シェーダを読み込んでコンパイル
+            var vshader = glc.createShader( glc.VERTEX_SHADER );
+            var shaderSrc = document.getElementById("vtxshader").text;
+            glc.shaderSource( vshader, shaderSrc );
+            glc.compileShader( vshader );
+            if ( !glc.getShaderParameter( vshader, glc.COMPILE_STATUS ) ) {
+                var str = glc.getShaderInfoLog( vshader );
+                window.alert( "頂点シェーダエラー：\n" + str );
+                return false;
+            }
+
+            // フラグメントシェーダを読み込んでコンパイル
+            var fshader = glc.createShader( glc.FRAGMENT_SHADER );
+            shaderSrc = document.getElementById("frgshader").text;
+            glc.shaderSource( fshader, shaderSrc );
+            glc.compileShader( fshader );
+            if ( !glc.getShaderParameter( fshader, glc.COMPILE_STATUS ) ) {
+                var str = glc.getShaderInfoLog( fshader );
+                window.alert( "フラグメントシェーダエラー：\n" + str );
+                return false;
+            }
+
+            // シェーダプログラムを作る
+            var program = glc.createProgram();
+            glc.attachShader( program, vshader );
+            glc.attachShader( program, fshader );
+            glc.linkProgram( program );
+
+            // 頂点座標バッファ作成
+            var coords = [
+                -1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                1.0, 0.0, 0.0,
+            ];
+            var coordBuf = glc.createBuffer();
+            glc.bindBuffer( glc.ARRAY_BUFFER, coordBuf ); // バッファをセットして
+            glc.bufferData( glc.ARRAY_BUFFER, new Float32Array(coords), glc.STATIC_DRAW ); // 配列を流し込んでいる
+
+            // 頂点カラーバッファ作成
+            var colors = [
+                1.0, 0.0, 0.0, 1.0,
+                0.0, 1.0, 0.0, 1.0,
+                0.0, 0.0, 1.0, 1.0
+            ];
+            var colorBuf = glc.createBuffer();
+            glc.bindBuffer( glc.ARRAY_BUFFER, colorBuf );
+            glc.bufferData( glc.ARRAY_BUFFER, new Float32Array( colors ), glc.STATIC_DRAW );
+
+
+            // ゲームループ
+            function update() {
+                // 変換行列作成
+                var world = new OXMath.Mat4x4();
+                var view = OXMath.lookAtLH(
+                    new OXMath.Vec3( 0.0, 0.0, -5.0 ),
+                    new OXMath.Vec3( 0.0, 0.0, 0.0 ),
+                    new OXMath.Vec3( 0.0, 1.0, 0.0 )
+                );
+                var proj = OXMath.perspLH( OXMath.toRad(30.0), 1.0, 0.01, 100.0 );
+                var wvp = world.mul(view).mul(proj);
+
+                // 作ったシェーダプログラムをコンテキストに設定
+                glc.useProgram( program );
+
+                // シェーダ入力引数であるAttributeとUniformを取得
+                var aPos = glc.getAttribLocation( program, "aPos" );
+                var aColor = glc.getAttribLocation( program, "aColor" );
+                var uWVP = glc.getUniformLocation( program, "uWVP" );
+
+                // 各バッファとシェーダ引数を繋ぐ
+                // 座標
+                glc.bindBuffer( glc.ARRAY_BUFFER, coordBuf );
+                glc.vertexAttribPointer( aPos, 3, glc.FLOAT, false, 0, 0 );
+                // カラー
+                glc.bindBuffer( glc.ARRAY_BUFFER, colorBuf );
+                glc.vertexAttribPointer( aColor, 4, glc.FLOAT, false, 0, 0 );
+                // 行列
+                glc.uniformMatrix4fv( uWVP, false, wvp.ary() );
+
+                // 使用するAttributeを指定
+                glc.enableVertexAttribArray( aPos );
+                glc.enableVertexAttribArray( aColor );
+
+                // 描画
+                glc.drawArrays( glc.TRIANGLES, 0, 3 );
+
+            }
+            setInterval( update, 33 );
+        }
+
+    </script>
+
+</head>
+
+<body>
+    <canvas id="canvas" width=480 height=480></canvas>
+</body>
+</html>
